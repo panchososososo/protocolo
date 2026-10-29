@@ -345,12 +345,12 @@ function sembrar() {
     }));
   };
   R('manana', 'Mañana', '07:30', 0, [
-    ['Tender la cama'], ['Vaso de agua', h.agua], ['Lavarse los dientes', h.dientes], ['Ducha y desodorante'],
-    ['Protector solar'], ['Desayuno'], ['Mirar el plan del día'],
+    ['Vaso de agua', h.agua], ['Lavarse los dientes', h.dientes], ['Ducha y desodorante'],
+    ['Desayuno'], ['Mirar el plan del día'],
   ]);
   R('noche', 'Noche', '21:00', 1, [
-    ['Lavarse los dientes + hilo dental', h.dientes], ['Lavarse la cara'], ['Preparar mochila y ropa'],
-    ['Cargar celular, tablet y reloj'], ['Orden de 10 minutos'], ['Pantalla fuera; manga o nada'],
+    ['Lavarse los dientes', h.dientes], ['Lavarse la cara'], ['Preparar mochila y ropa'],
+    ['Cargar celular, tablet y reloj'], ['Orden de 10 minutos'],
   ]);
   R('semanal', 'Semanal', '19:00', 2, [
     ['Cortarse las uñas'], ['Afeitarse o recortar barba'], ['Cambiar sábanas y toallas'], ['Lavar ropa del gym'],
