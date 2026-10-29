@@ -348,7 +348,7 @@ function sembrar() {
     ['Tender la cama'], ['Vaso de agua', h.agua], ['Lavarse los dientes', h.dientes], ['Ducha y desodorante'],
     ['Protector solar'], ['Desayuno'], ['Mirar el plan del día'],
   ]);
-  R('noche', 'Noche', '22:30', 1, [
+  R('noche', 'Noche', '21:00', 1, [
     ['Lavarse los dientes + hilo dental', h.dientes], ['Lavarse la cara'], ['Preparar mochila y ropa'],
     ['Cargar celular, tablet y reloj'], ['Orden de 10 minutos'], ['Pantalla fuera; manga o nada'],
   ]);

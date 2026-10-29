@@ -43,8 +43,8 @@ async function enviar(subs: Sub[], payload: Record<string, string>) {
       n++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
+      console.error('push falló', code, new URL(s.endpoint).host, (e as { body?: string }).body);
       if (code === 404 || code === 410) await sb.from('p_push').delete().eq('endpoint', s.endpoint);
-      else console.error('push falló', code, (e as { body?: string }).body);
     }
   }
   return n;

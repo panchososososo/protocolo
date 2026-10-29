@@ -12,8 +12,8 @@ export const AVISOS = [
   { id: 'mediodia',                    hora: '13:00' },
   { id: 'tarde',                       hora: '18:30' },
   { id: 'semanal',  rutina: 'semanal', hora: '19:00', domingo: true },
-  { id: 'resumen',                     hora: '21:30' },
-  { id: 'noche',    rutina: 'noche',   hora: '22:30' },
+  { id: 'resumen',                     hora: '20:00' },
+  { id: 'noche',    rutina: 'noche',   hora: '21:00' },
 ];
 export const VENTANA_MIN = 90;   // si el cron se atrasa, el aviso igual sale dentro de este margen
 
