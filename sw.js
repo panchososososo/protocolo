@@ -1,6 +1,6 @@
 // ============ Protocolo · service worker: la app abre aunque no haya señal ============
-const VERSION = 'protocolo-1.0.0';
-const SHELL = ['./', './index.html', './app.js', './logica.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const VERSION = 'protocolo-1.1.0';
+const SHELL = ['./', './index.html', './app.js', './logica.js', './avisos.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 // Librerías y fuentes de otros orígenes que también se guardan para usar sin red.
 const EXTERNOS = ['https://cdn.jsdelivr.net', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'];
 
@@ -35,4 +35,22 @@ self.addEventListener('fetch', ev => {
   ev.respondWith(fetch(ev.request)
     .then(res => { if (res.ok) { const copia = res.clone(); caches.open(VERSION).then(c => c.put(ev.request, copia)); } return res; })
     .catch(() => caches.match(ev.request).then(r => r || caches.match('./index.html'))));
+});
+
+// ---------- avisos (web push desde la función "avisos" de Supabase) ----------
+self.addEventListener('push', ev => {
+  let d = {};
+  try { d = ev.data ? ev.data.json() : {}; } catch { d = { body: ev.data && ev.data.text() }; }
+  ev.waitUntil(self.registration.showNotification(d.title || 'Protocolo', {
+    body: d.body || '', tag: d.tag || 'protocolo', renotify: true,
+    icon: 'icon-192.png', badge: 'icon-192.png', data: { url: d.url || './' },
+  }));
+});
+self.addEventListener('notificationclick', ev => {
+  ev.notification.close();
+  const destino = new URL((ev.notification.data && ev.notification.data.url) || './', self.registration.scope).href;
+  ev.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(ws => {
+    const w = ws.find(x => x.url.startsWith(self.registration.scope));
+    return w ? w.focus() : self.clients.openWindow(destino);
+  }));
 });

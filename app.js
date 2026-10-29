@@ -4,13 +4,17 @@ import {
   usarDatos, reindexar, clave, total, manual, registrado, estado, extCumple, extDe, racha, hechosSemana,
   pctDia, nivel, diariosDel, semanasCalendario, inicioHabito, LECTORES, MESES,
 } from './logica.js';
+import { AVISOS, horaDe } from './avisos.js';
 
 // Mismo proyecto de Supabase que Base Lunar. La publishable key es pública por diseño:
 // lo que protege los datos son las políticas RLS de esquema.sql.
 const SUPABASE_URL = 'https://nkdaxyghjbnpyyykvaiw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_FecmQheHtiTHEX_KVe5ueg_xSfPIGr_';
 const SB_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/+esm';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
+// Clave pública de los avisos (web push). La privada vive solo en Supabase.
+const VAPID_PUBLIC = 'BCCGUn1WW78Xp-Y1_Sq2KCjovCPT85MQBdfR_AVORG-TlAlGpa7K0iEcxGxxMTqPZfEDDfO3M7cCDRKkDd4Sdrk';
+const AVISOS_URL = SUPABASE_URL + '/functions/v1/avisos';
 const VENTANA = SEMANAS * 7 + 14;          // días de historia que se cargan
 const GH_CADA = 10 * 60e3;                 // leer las otras apps como máximo cada 10 min
 
@@ -34,7 +38,7 @@ const S = {
   sb: null, user: leer('usuario', null), listo: false, sinEsquema: false, errorInicio: null,
   vista: leer('vista', 'hoy'), dia: 'hoy', sel: null, abiertas: new Set(), editando: null,
   verArchivados: false, estado: 'ok', gh: leer('gh', {}), bl: leer('bl', null),
-  crono: leer('crono', null),
+  crono: leer('crono', null), push: 'cargando',
 };
 
 // ---------- utilidades ----------
@@ -86,7 +90,7 @@ const I = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden
 
 const ORIGENES = {
   manual: 'Manual', fierro: 'Fierro', bitacora: 'Bitácora PDT', baselunar: 'Base Lunar',
-  appbb: 'app-bb', futsal: 'Bitácora del Arquero',
+  appbb: 'Nosotros', futsal: 'Bitácora del Arquero',
 };
 const TIPOS = { si_no: 'Sí / no', cantidad: 'Cantidad', minutos: 'Minutos', hora: 'Hora', conteo: 'Conteo' };
 
@@ -666,7 +670,7 @@ function pantallaAjustes() {
       </ul>
       ${g.error ? `<p class="err">${esc(g.error)}</p>` : ''}
       <form data-form="token">
-        <label>Token de GitHub <small>(solo lectura de Gists; queda solo en este dispositivo)</small>
+        <label>Token de GitHub <small>(permiso de Gists; queda solo en este dispositivo)</small>
           <input name="token" type="password" autocomplete="off" placeholder="${tok ? 'guardado · pega otro para cambiarlo' : 'github_pat_…'}"></label>
         <div class="acciones"><button class="btn pri" type="submit">Guardar y leer</button>
           ${tok ? `<button class="btn" type="button" data-a="leer-ahora">Leer ahora</button><button class="btn peligro" type="button" data-a="quitar-token">Quitar token</button>` : ''}</div>
@@ -677,7 +681,7 @@ function pantallaAjustes() {
     <section class="card pad">
       ${rutinasOrden().map(r => `<label class="linea">${esc(r.nombre)}${r.clave === 'semanal' ? ' <small>(domingo)</small>' : ''}
         <input type="time" data-a="hora-aviso" data-id="${r.id}" value="${esc(r.hora_aviso || '')}"></label>`).join('')}
-      <p class="nota">Las horas ya quedan guardadas. Las notificaciones llegan en la fase 3.</p>
+      ${bloqueAvisos()}
     </section>
     <h2>Datos</h2>
     <section class="card pad acciones">
@@ -686,6 +690,83 @@ function pantallaAjustes() {
     </section>
     <p class="nota">Protocolo ${VERSION}</p>
   `;
+}
+
+// ---------- avisos (web push) ----------
+const NOMBRES_AVISO = {
+  manana: 'Mañana: rutina y lo que quedó sin anotar ayer', mediodia: 'Mediodía: agua y tesis si van bajo la mitad',
+  tarde: 'Tarde: rachas en riesgo y semanales apretados', semanal: 'Domingo: rutina semanal y semanales pendientes',
+  resumen: 'Resumen: lo que falta del día', noche: 'Noche: rutina de la noche y hora de acostarse',
+};
+function bloqueAvisos() {
+  const lista = [...AVISOS].sort((a, b) => horaDe(a, D.rutinas) - horaDe(b, D.rutinas))
+    .map(a => `<li><span>${esc(NOMBRES_AVISO[a.id])}</span><span>${hhmm(horaDe(a, D.rutinas))}</span></li>`).join('');
+  const st = S.push;
+  const estado_ = { activo: 'Activos en este dispositivo', inactivo: 'Apagados en este dispositivo', bloqueado: 'Bloqueados por el navegador',
+    no: 'Este navegador no admite avisos', cargando: 'Revisando…' }[st] || st;
+  const botones = st === 'activo'
+    ? `<button class="btn" data-a="avisos-probar">Probar</button><button class="btn" data-a="avisos-resumen">Ver el resumen de ahora</button><button class="btn peligro" data-a="avisos-apagar">Apagar aquí</button>`
+    : st === 'inactivo' ? `<button class="btn pri" data-a="avisos-activar">Activar avisos aquí</button>` : '';
+  return `<p class="nota">Las horas de arriba mueven los avisos de cada rutina. Cada aviso suena solo si hay algo pendiente.</p>
+    <ul class="fuentes">${lista}</ul>
+    <p><strong>${esc(estado_)}</strong></p>
+    ${st === 'bloqueado' || st === 'no' ? `<p class="nota">En Brave: Ajustes → Privacidad y seguridad → activa “Usar servicios de Google para mensajería push”. Luego, en la info del sitio, permite las notificaciones.</p>` : ''}
+    <div class="acciones">${botones}</div>`;
+}
+function claveVapid() {
+  const b = atob(VAPID_PUBLIC.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - VAPID_PUBLIC.length % 4) % 4));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+async function refrescarPush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) S.push = 'no';
+    else if (Notification.permission === 'denied') S.push = 'bloqueado';
+    else {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && await reg.pushManager.getSubscription();
+      S.push = sub ? 'activo' : 'inactivo';
+      if (sub && S.user && S.sb) await S.sb.from('p_push').upsert({ endpoint: sub.endpoint, suscripcion: sub.toJSON() });
+    }
+  } catch { S.push = 'no'; }
+  if (S.vista === 'ajustes') render();
+}
+async function activarAvisos() {
+  try {
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') { toast('Sin permiso para notificaciones'); await refrescarPush(); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription()
+      || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: claveVapid() });
+    const { error } = await S.sb.from('p_push').upsert({ endpoint: sub.endpoint, suscripcion: sub.toJSON() });
+    if (error) throw error;
+    S.push = 'activo'; render();
+    await probarAvisos();
+  } catch (e) {
+    toast(/push service|AbortError|registration/i.test(String(e && (e.message || e.name)))
+      ? 'El navegador no dejó suscribirse. En Brave activa la mensajería push de Google (Ajustes → Privacidad).'
+      : 'No pude activar los avisos: ' + (e.message || e));
+    await refrescarPush();
+  }
+}
+async function probarAvisos(aviso) {
+  try {
+    const { data } = await S.sb.auth.getSession();
+    const r = await fetch(AVISOS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + data.session.access_token },
+      body: JSON.stringify(aviso ? { prueba: true, aviso } : { prueba: true }),
+    });
+    const j = await r.json();
+    toast(r.ok ? 'Aviso enviado' : 'No se envió: ' + (j.error || r.status));
+  } catch (e) { toast('No se envió: ' + (e.message || e)); }
+}
+async function apagarAvisos() {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (sub) { await S.sb.from('p_push').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+  } catch {}
+  await refrescarPush(); toast('Avisos apagados en este dispositivo');
 }
 
 // ============================================================
@@ -747,6 +828,10 @@ document.addEventListener('click', async ev => {
     case 'leer-ahora': toast('Leyendo las otras apps…'); await Promise.all([leerGists(true), leerBaseLunar()]); render(); break;
     case 'quitar-token': escribir('ghToken', ''); S.gh = {}; escribir('gh', {}); render(); break;
     case 'exportar': exportar(); break;
+    case 'avisos-activar': await activarAvisos(); break;
+    case 'avisos-probar': await probarAvisos(); break;
+    case 'avisos-resumen': await probarAvisos('resumen'); break;
+    case 'avisos-apagar': await apagarAvisos(); break;
     case 'sincronizar': await sincronizar(true); toast('Sincronizado'); break;
     case 'reintentar': await sincronizar(true); break;
   }
@@ -884,6 +969,7 @@ async function arrancar() {
     S.sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
   } catch {
     S.listo = !!D.habitos.length; S.estado = 'offline'; render();   // sin red: se trabaja con lo guardado
+    refrescarPush();
     return;
   }
   const { data } = await S.sb.auth.getSession();
@@ -896,6 +982,7 @@ async function arrancar() {
   S.listo = !!D.habitos.length;
   render();
   if (S.user) sincronizar();
+  refrescarPush();
 }
 
 let ultimoDia = hoyLogico();
