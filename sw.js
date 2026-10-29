@@ -1,5 +1,5 @@
 // ============ Protocolo · service worker: la app abre aunque no haya señal ============
-const VERSION = 'protocolo-1.1.0';
+const VERSION = 'protocolo-1.1.1';
 const SHELL = ['./', './index.html', './app.js', './logica.js', './avisos.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 // Librerías y fuentes de otros orígenes que también se guardan para usar sin red.
 const EXTERNOS = ['https://cdn.jsdelivr.net', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'];
